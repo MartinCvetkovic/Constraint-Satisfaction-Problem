@@ -113,6 +113,7 @@ class ForwardChecking(Algorithm):
                 if len(word) != variables[variable]:
                     domains[variable].remove(word)
         localSolution = copy.deepcopy(domains)
+        fullDomain = copy.deepcopy(domains)
 
         variableIndex = 0
         variablesKeys = list(variables.keys())
@@ -120,53 +121,84 @@ class ForwardChecking(Algorithm):
         usedWords = []
         usedVariables = []
         localSolutions = []
+        localDomains = []
         isBacktracking = False
         while variableIndex < len(variablesKeys):
+
+            shouldBacktrack = False
+            for var, value in domains.items():
+                if len(value) == 0:
+                    shouldBacktrack = True
+                    break
+
             variable: str = variablesKeys[variableIndex]
             isHorizontal = True if variable[-1] == 'h' else False
             position = int(variable[0:-1])
             value = None
-            for word in localSolution[variable]:
-                wordMatches = True
-                for char in word:
-                    i = position // tilesCol
-                    j = position % tilesCol
-                    if isinstance(tiles[i][j], str) and char != tiles[i][j]:
-                        wordMatches = False
-                        break
-                    if isHorizontal:
-                        position += 1
-                    else:
-                        position += tilesCol
-                if not wordMatches:
-                    continue
-                value = word
-                if wordMatches and isBacktracking:
-                    isBacktracking = False
-                    localSolution = copy.deepcopy(domains)
-                break
+
+            if not shouldBacktrack:
+                for word in localSolution[variable]:
+                    wordMatches = True
+                    for char in word:
+                        i = position // tilesCol
+                        j = position % tilesCol
+                        if isinstance(tiles[i][j], str) and char != tiles[i][j]:
+                            wordMatches = False
+                            break
+                        if isHorizontal:
+                            position += 1
+                        else:
+                            position += tilesCol
+                    if not wordMatches:
+                        continue
+                    value = word
+                    if wordMatches and isBacktracking:
+                        isBacktracking = False
+                        localSolution = copy.deepcopy(domains)
+                    break
 
             if value is not None:
-                usedWords.append(value)
-                usedVariables.append(variable)
-                solution.append([variable, domains[variable].index(value), domains])
-                localSolutions.append(localSolution)
-
                 position = int(variable[0:-1])
                 for char in value:
-                    tiles[position // tilesCol][position % tilesCol] = char
+                    i = position // tilesCol
+                    j = position % tilesCol
+                    tiles[i][j] = char
+                    varsToChange = [str(position) + "h", str(position) + "v"]
+                    for var in varsToChange:
+                        if domains.get(var) is not None:
+                            tempDomains = copy.deepcopy(domains[var])
+                            val = domains.get(var)
+                            for item in val:
+                                if item[0] != char:
+                                    tempDomains.remove(item)
+                            domains[var] = tempDomains
                     if isHorizontal:
                         position += 1
                     else:
                         position += tilesCol
 
+                usedWords.append(value)
+                usedVariables.append(variable)
+                solution.append([variable, domains[variable].index(value), copy.deepcopy(domains)])
+                localSolutions.append(localSolution)
+                localDomains.append(copy.deepcopy(domains))
+                localSolution = copy.deepcopy(domains)
                 variableIndex += 1
             else:
-                solution.append([variable, None, domains])
-                value = usedWords.pop()
-                variable: str = usedVariables.pop()
-                localSolution = localSolutions.pop()
-                localSolution[variable].remove(value)
+                if len(usedWords) > 0:
+                    value = usedWords.pop()
+                    variable: str = usedVariables.pop()
+                    localSolution = localSolutions.pop()
+                solution.append([variable, None, copy.deepcopy(domains)])
+                if shouldBacktrack:
+                    localDomains.pop()
+                if len(localDomains) > 0:
+                    domains = localDomains.pop()
+                else:
+                    domains = copy.deepcopy(fullDomain)
+                    localSolution = copy.deepcopy(fullDomain)
+                if len(localSolution) > 0:
+                    localSolution[variable].remove(value)
 
                 isHorizontal = True if variable[-1] == 'h' else False
                 position = int(variable[0:-1])
